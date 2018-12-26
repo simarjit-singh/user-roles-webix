@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Roles</title>
+    <link rel="stylesheet" href="./webix/codebase/webix.css" type="text/css" charset="utf-8">
+    <script src="./webix/codebase/webix.js" type="text/javascript" charset="utf-8"></script>
+</head>
+</head>
+<body>
+<script type="text/javascript" charset="utf-8">
+    webix.DataDriver.myjson = webix.extend({
+        toObject: function (arr) {
+            arr = webix.DataDriver.json.toObject(arr);
+            for (var i = 0; i < arr.length; i++)
+                arr[i].value = arr[i].name;
+            return arr;
+        }
+    }, webix.DataDriver.json);
+    webix.ready(function () {
+
+        webix.ui({
+            type: "space",
+            rows: [
+                {
+                    view: "toolbar", id: "mybar", elements: [
+                        {view: "button", value: "Add User", width: 170, click: add_user, align: "left", type: "form"},
+                        {
+                            view: "button",
+                            value: "Delete User",
+                            width: 170,
+                            click: delete_user,
+                            align: "center",
+                            type: "danger"
+                        },
+                        {view: "button", value: "Manage Roles", width: 170, click: manage_roles, align: "center"},
+
+                        // {view: "button", value: "Manage Roles", width: 170, click: manage_roles,
+                        //     align:"right"},
+                    ]
+                },
+                {
+                    view: "list",
+                    id: "mylist",
+                    template: function (obj) {
+                        let html = `<span>${obj.email}</span>`;
+                        for (let role of obj.roles) {
+                            html += `<span style="padding:4px; border: 1px solid #ccc;margin-left: 8px;border-radius: 4px; color: #999;">${role.name}</span>`;
+                        }
+                        return html;
+                    },
+                    select: true, //enables selection
+                    // height: 400,
+                    url: 'http://localhost:3000/api/v1/users'
+                },
+                {
+                    view: "form",
+                    id: "myform",
+                    width: 500,
+                    position: 'center',
+                    hidden: true,
+                    elements: [
+                        {view: "text", label: "Name", name: "name"},
+                        {view: "text", label: "Email", name: "email"},
+                        {
+                            view: "multiselect",
+                            label: "Roles",
+                            name: "roles",
+                            // options:"http://localhost:3000/api/v1/roles"
+                            id: "multi_select",
+
+                            suggest: {
+                                view: "multisuggest",
+                                datatype: "myjson",
+                                url: "http://localhost:3000/api/v1/roles"
+                            }
+                        },
+                        {
+                            cols: [{view: "button", value: "Save", click: create_user, type: "form"},
+                                {view: "button", value: "Cancel", click: cancel_form}]
+                        },
+
+                    ]
+                },
+            ]
+        });
+        webix.ui({
+            view: "window",
+            id: "my_win",
+            head: "Roles",
+            // head:{view:"button", label:"Close", width:70, click:("$$('my_win').close();")} ,
+            // width: 200,
+            // height: 200,
+            position: "center",
+            modal: true,
+            body: {
+                rows: [
+                    {
+                        view: "toolbar", id: "myRolebar", elements: [
+                            {
+                                view: "button",
+                                value: "Add Role",
+                                width: 170,
+                                click: add_role,
+                                align: "left",
+                                type: "form"
+                            },
+                            {
+                                view: "button",
+                                value: "Delete Role",
+                                width: 170,
+                                click: delete_role,
+                                align: "center",
+                                type: "danger"
+                            },
+                            {
+                                view: "button",
+                                value: "Edit Role",
+                                width: 170,
+                                click: edit_role,
+                                align: "center",
+                            },
+                        ]
+                    },
+                    {
+                        view: "list",
+                        id: "myRolelist",
+                        template: "#name#",
+                        select: true,
+                        url: 'http://localhost:3000/api/v1/roles'
+                    },
+                    {
+                        view: "form",
+                        id: "myRoleform",
+                        width: 500,
+                        position: 'center',
+                        hidden: true,
+                        elements: [
+                            {view: "text", label: "Name", name: "name"},
+                            {
+                                cols: [{view: "button", value: "Save", click: create_role, type: "form"},
+                                    {view: "button", value: "Cancel", click: cancel_role_form}]
+                            },
+                        ]
+                    },
+                    {view: "button", label: "Close", position: "center", click: close_window}
+                ]
+
+            }
+
+        });
+        $$("mylist").attachEvent("onAfterSelect", function (id) {
+            $$("myform").setValues({
+                name: $$("mylist").getItem(id).name,
+                email: $$("mylist").getItem(id).email,
+                roles: $$("mylist").getItem(id).roles.map(function (elem) {
+                    return elem.id;
+                }).join(),
+                id: $$("mylist").getItem(id).id
+            });
+            var list = $$("multi_select").getPopup().getList();
+            list.clearAll();
+            list.load("http://localhost:3000/api/v1/roles");
+            $$("myform").show();
+            $$("mylist").hide();
+        });
+    });
+
+    function close_window() {
+
+        $$('my_win').hide();
+        var list = $$("mylist");
+        list.clearAll();
+        list.load("http://localhost:3000/api/v1/users");
+        var list = $$("multi_select").getPopup().getList();
+        list.clearAll();
+        list.load("http://localhost:3000/api/v1/roles");
+    }
+
+    function add_role() {
+        $$('myRoleform').clear();
+        $$("myRoleform").show();
+
+        $$("myRolelist").hide();
+    }
+
+    function create_role() {
+        let data = $$("myRoleform").getValues();
+        if (!data.id) {
+            webix.ajax().headers({
+                "Content-type": "application/json"
+            }).post('http://localhost:3000/api/v1/roles', {name: data.name}, function (text, xml, xhr) {
+                let user = JSON.parse(text);
+                if (xhr.status === 201) {
+                    $$("myRoleform").hide();
+                    $$("myRolelist").add({
+                        id: user.id,
+                        name: user.name,
+                    });
+                    $$("myRolelist").show();
+
+                }
+            });
+        } else {
+            webix.ajax().headers({
+                "Content-type": "application/json"
+            }).put('http://localhost:3000/api/v1/roles/' + data.id, {name: data.name}, function (text, xml, xhr) {
+
+                if (xhr.status === 204) {
+                    $$("myRoleform").hide();
+                    // var list = $$("mylist");
+                    // list.clearAll();
+                    // list.load("http://localhost:3000/api/v1/users");
+                    var item = $$("myRolelist").getSelectedItem();
+                    item.name = data.name;
+                    $$("myRolelist").show();
+
+                }
+            });
+        }
+    }
+
+    function cancel_role_form() {
+        $$("myRoleform").hide();
+        $$("myRoleform").clear();
+        $$("myRolelist").show();
+    }
+
+    function delete_role() {
+        var id = $$("myRolelist").getSelectedId();
+        // alert(id);
+        if (!id) return;
+        webix.confirm({
+            title: "Delete Role",// the text of the box header
+            text: "Are you sure you want to delete the selected item?",
+            callback: function (result) {
+                if (result) {
+                    webix.ajax().del("http://localhost:3000/api/v1/roles/" + id, function (text, xml, xhr) {
+                        if (xhr.status === 204) {
+                            $$("myRolelist").remove(id);
+
+                        }
+                    });
+
+                }
+            }
+        });
+    }
+
+    function edit_role() {
+        const role = ($$("myRolelist").getSelectedItem());
+        if (!role) return;
+        $$("myRoleform").setValues({
+            name: role.name,
+            id: role.id
+        });
+        $$("myRoleform").show();
+        $$("myRolelist").hide();
+    }
+
+    function manage_roles() {
+        $$('my_win').show();
+    }
+
+    function cancel_form() {
+        $$("myform").hide();
+        $$("mylist").show();
+    }
+
+    function add_user() {
+        $$('myform').clear();
+        // $$("multi_select").refresh();
+        var list = $$("multi_select").getPopup().getList();
+        list.clearAll();
+        list.load("http://localhost:3000/api/v1/roles");
+        $$("myform").show();
+
+        $$("mylist").hide();
+    }
+
+    function create_user() {
+        let data = $$("myform").getValues();
+        console.log(data);
+        if (!data.id) {
+            webix.ajax().headers({
+                "Content-type": "application/json"
+            }).post('http://localhost:3000/api/v1/users', {
+                name: data.name,
+                email: data.email,
+                roles: data.roles ? '[' + data.roles + ']' : '[]'
+            }, function (text, xml, xhr) {
+                // response
+                // console.log(text);
+                let user = JSON.parse(text);
+                if (xhr.status === 201) {
+                    $$("myform").hide();
+                    $$("mylist").add({
+                        id: user.id,
+                        name: user.name,
+                        email: user.email,
+                        roles: user.roles
+                    });
+                    $$("mylist").show();
+
+                }
+            });
+        } else {
+            webix.ajax().headers({
+                "Content-type": "application/json"
+            }).put('http://localhost:3000/api/v1/users/' + data.id, {
+                name: data.name,
+                email: data.email,
+                roles: data.roles ? '[' + data.roles + ']' : '[]'
+            }, function (text, xml, xhr) {
+                // response
+                // console.log(text);
+                // let user = JSON.parse(text);
+                if (xhr.status === 204) {
+                    $$("myform").hide();
+                    var list = $$("mylist");
+                    list.clearAll();
+                    list.load("http://localhost:3000/api/v1/users");
+                    $$("mylist").show();
+
+                }
+            });
+        }
+
+
+    }
+
+    function delete_user() {
+        var id = $$("mylist").getSelectedId();
+        // alert(id);
+        if (!id) return;
+        webix.confirm({
+            title: "Delete User",// the text of the box header
+            text: "Are you sure you want to delete the selected item?",
+            callback: function (result) {
+                if (result) {
+                    webix.ajax().del("http://localhost:3000/api/v1/users/" + id, function (text, xml, xhr) {
+                        if (xhr.status === 204) {
+                            $$("mylist").remove(id);
+                            if ($$("myform").isVisible()) {
+                                $$("myform").hide();
+                                $$("mylist").show();
+                            }
+                        }
+                    });
+
+                }
+            }
+        });
+    }
+
+</script>
+</body>
+</html>
